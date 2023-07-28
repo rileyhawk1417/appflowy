@@ -1,4 +1,4 @@
-import { CreateViewPayloadPB, UpdateViewPayloadPB, ViewLayoutPB } from '@/services/backend';
+import { ViewLayoutPB } from '@/services/backend';
 import { PageBackendService } from '$app/stores/effects/workspace/page/page_bd_svc';
 import { WorkspaceObserver } from '$app/stores/effects/workspace/workspace_observer';
 import { Page, parserViewPBToPage } from '$app_reducers/pages/slice';
@@ -31,6 +31,20 @@ export class PageController {
     return Promise.reject(result.err);
   };
 
+  movePage = async (params: { parentId: string; prevId?: string }): Promise<void> => {
+    const result = await this.backendService.movePage({
+      viewId: this.id,
+      parentId: params.parentId,
+      prevId: params.prevId,
+    });
+
+    if (result.ok) {
+      return result.val;
+    }
+
+    return Promise.reject(result.err);
+  };
+
   getChildPages = async (): Promise<Page[]> => {
     const result = await this.backendService.getPage(this.id);
 
@@ -58,16 +72,22 @@ export class PageController {
     return this.getPage(parentPageId);
   };
 
-  subscribe = async (callbacks: { onChildPagesChanged?: (childPages: Page[]) => void }) => {
-    const onChildPagesChanged = async () => {
+  subscribe = async (callbacks: {
+    onChildPagesChanged?: (childPages: Page[]) => void;
+    onPageChanged?: (page: Page) => void;
+  }) => {
+    const onChanged = async () => {
+      const page = await this.getPage();
       const childPages = await this.getChildPages();
 
+      callbacks.onPageChanged?.(page);
       callbacks.onChildPagesChanged?.(childPages);
     };
 
-    this.onChangeQueue = new AsyncQueue(onChildPagesChanged);
+    this.onChangeQueue = new AsyncQueue(onChanged);
     await this.observer.subscribeView(this.id, {
       didUpdateChildViews: this.didUpdateChildPages,
+      didUpdateView: this.didUpdateView,
     });
   };
 
@@ -107,6 +127,10 @@ export class PageController {
   };
 
   private didUpdateChildPages = (payload: Uint8Array) => {
+    this.onChangeQueue?.enqueue(Math.random());
+  };
+
+  private didUpdateView = (payload: Uint8Array) => {
     this.onChangeQueue?.enqueue(Math.random());
   };
 }

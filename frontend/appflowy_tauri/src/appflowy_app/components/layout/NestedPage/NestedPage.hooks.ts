@@ -9,9 +9,9 @@ import { useTranslation } from 'react-i18next';
 
 export function useLoadChildPages(pageId: string) {
   const dispatch = useAppDispatch();
-  const childPages = useAppSelector((state) => state.pages.childPages[pageId]);
+  const childPages = useAppSelector((state) => state.pages.relationMap[pageId]);
 
-  const collapsed = useAppSelector((state) => !state.pages.expandedPages[pageId]);
+  const collapsed = useAppSelector((state) => !state.pages.expandedIdMap[pageId]);
   const toggleCollapsed = useCallback(() => {
     if (collapsed) {
       dispatch(pagesActions.expandPage(pageId));
@@ -36,6 +36,13 @@ export function useLoadChildPages(pageId: string) {
     [dispatch, pageId]
   );
 
+  const onPageChanged = useCallback(
+    (page: Page) => {
+      dispatch(pagesActions.onPageChanged(page));
+    },
+    [dispatch]
+  );
+
   const onPageCollapsed = useCallback(async () => {
     dispatch(pagesActions.removeChildPages(pageId));
     await controller.unsubscribe();
@@ -52,8 +59,9 @@ export function useLoadChildPages(pageId: string) {
     );
     await controller.subscribe({
       onChildPagesChanged,
+      onPageChanged,
     });
-  }, [controller, dispatch, onChildPagesChanged, pageId]);
+  }, [controller, dispatch, onChildPagesChanged, onPageChanged, pageId]);
 
   useEffect(() => {
     if (collapsed) {
@@ -77,7 +85,7 @@ export function useLoadChildPages(pageId: string) {
 }
 
 export function usePageActions(pageId: string) {
-  const page = useAppSelector((state) => state.pages.map[pageId]);
+  const page = useAppSelector((state) => state.pages.pageMap[pageId]);
   const { t } = useTranslation();
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
