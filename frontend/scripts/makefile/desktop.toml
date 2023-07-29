@@ -20,7 +20,9 @@ category = "Build"
 dependencies = ["env_check"]
 run_task = { name = [
   "setup-crate-type",
+  "setup-android-sqlite",
   "sdk-build-android",
+  "restore-sqlite-crate",
   "restore-crate-type",
 ] }
 
@@ -89,6 +91,10 @@ script = [
       -t x86 \
       -t x86_64 \
       -o $DEST build --release
+    cp $ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/aarch64-linux-android/libc++_shared.so $DEST/arm64-v8a/
+    cp $ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/armv7-linux-androideabi/libc++_shared.so $DEST/arm64-v8a/
+    cp $ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/i686-linux-android/libc++_shared.so $DEST/arm64-v8a/
+    cp $ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/x86_64-android/libc++_shared.so $DEST/arm64-v8a/
     cd ../
   """,
 ]
