@@ -1,0 +1,2 @@
+/home/sean/Documents/Github_Repos/appFlowy/app/appflowy/frontend/appflowy_flutter/android/app/.cxx/Debug/2x33271x/armeabi-v7a/CMakeFiles/rebuild_cache.dir
+/home/sean/Documents/Github_Repos/appFlowy/app/appflowy/frontend/appflowy_flutter/android/app/.cxx/Debug/2x33271x/armeabi-v7a/CMakeFiles/edit_cache.dir

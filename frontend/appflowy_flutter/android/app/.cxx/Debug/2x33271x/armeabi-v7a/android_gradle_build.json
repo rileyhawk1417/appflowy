@@ -1,0 +1,29 @@
+{
+  "buildFiles": [
+    "/home/sean/Documents/Github_Repos/appFlowy/app/appflowy/frontend/appflowy_flutter/android/app/CMakeLists.txt",
+    "/home/sean/Documents/Github_Repos/appFlowy/app/appflowy/frontend/appflowy_flutter/android/app/ndk-stl-config.cmake"
+  ],
+  "cleanCommandsComponents": [
+    [
+      "/home/sean/Android/Sdk/cmake/3.18.1/bin/ninja",
+      "-C",
+      "/home/sean/Documents/Github_Repos/appFlowy/app/appflowy/frontend/appflowy_flutter/android/app/.cxx/Debug/2x33271x/armeabi-v7a",
+      "clean"
+    ]
+  ],
+  "buildTargetsCommandComponents": [
+    "/home/sean/Android/Sdk/cmake/3.18.1/bin/ninja",
+    "-C",
+    "/home/sean/Documents/Github_Repos/appFlowy/app/appflowy/frontend/appflowy_flutter/android/app/.cxx/Debug/2x33271x/armeabi-v7a",
+    "{LIST_OF_TARGETS_TO_BUILD}"
+  ],
+  "libraries": {},
+  "toolchains": {
+    "toolchain": {
+      "cCompilerExecutable": "/home/sean/Android/Sdk/ndk/24.0.8215888/toolchains/llvm/prebuilt/linux-x86_64/bin/clang.lld",
+      "cppCompilerExecutable": "/home/sean/Android/Sdk/ndk/24.0.8215888/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++.lld"
+    }
+  },
+  "cFileExtensions": [],
+  "cppFileExtensions": []
+}
