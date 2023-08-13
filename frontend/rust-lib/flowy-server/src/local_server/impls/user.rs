@@ -1,11 +1,12 @@
-use anyhow::Error;
 use std::sync::Arc;
 
+use anyhow::Error;
 use lazy_static::lazy_static;
 use parking_lot::Mutex;
 
 use flowy_user_deps::cloud::UserService;
 use flowy_user_deps::entities::*;
+use flowy_user_deps::DEFAULT_USER_NAME;
 use lib_infra::box_any::BoxAny;
 use lib_infra::future::FutureResult;
 
@@ -28,14 +29,20 @@ impl UserService for LocalServerUserAuthServiceImpl {
       let uid = ID_GEN.lock().next_id();
       let workspace_id = uuid::Uuid::new_v4().to_string();
       let user_workspace = UserWorkspace::new(&workspace_id, uid);
+      let user_name = if params.name.is_empty() {
+        DEFAULT_USER_NAME()
+      } else {
+        params.name.clone()
+      };
       Ok(SignUpResponse {
         user_id: uid,
-        name: params.name,
+        name: user_name,
         latest_workspace: user_workspace.clone(),
         user_workspaces: vec![user_workspace],
         is_new: true,
         email: Some(params.email),
         token: None,
+        device_id: params.device_id,
       })
     })
   }
@@ -44,10 +51,7 @@ impl UserService for LocalServerUserAuthServiceImpl {
     let db = self.db.clone();
     FutureResult::new(async move {
       let params: SignInParams = params.unbox_or_error::<SignInParams>()?;
-      let uid = match params.uid {
-        None => ID_GEN.lock().next_id(),
-        Some(uid) => uid,
-      };
+      let uid = ID_GEN.lock().next_id();
 
       let user_workspace = db
         .get_user_workspace(uid)?
@@ -59,6 +63,7 @@ impl UserService for LocalServerUserAuthServiceImpl {
         user_workspaces: vec![user_workspace],
         email: Some(params.email),
         token: None,
+        device_id: params.device_id,
       })
     })
   }

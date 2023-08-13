@@ -10,12 +10,14 @@ use chrono::{DateTime, Utc};
 use collab_plugins::cloud_storage::{CollabObject, CollabType, RemoteCollabSnapshot};
 use serde_json::Value;
 use tokio_retry::strategy::FixedInterval;
-use tokio_retry::{Action, Retry};
+use tokio_retry::{Action, Condition, RetryIf};
 
 use flowy_database_deps::cloud::{CollabObjectUpdate, CollabObjectUpdateByOid};
 use lib_infra::util::md5;
 
-use crate::supabase::api::util::{ExtendedResponse, InsertParamsBuilder};
+use crate::supabase::api::util::{
+  ExtendedResponse, InsertParamsBuilder, SupabaseBinaryColumnDecoder,
+};
 use crate::supabase::api::PostgresWrapper;
 use crate::supabase::define::*;
 
@@ -34,18 +36,20 @@ impl FetchObjectUpdateAction {
     }
   }
 
-  pub fn run(self) -> Retry<Take<FixedInterval>, FetchObjectUpdateAction> {
+  pub fn run(self) -> RetryIf<Take<FixedInterval>, FetchObjectUpdateAction, RetryCondition> {
+    let postgrest = self.postgrest.clone();
     let retry_strategy = FixedInterval::new(Duration::from_secs(5)).take(3);
-    Retry::spawn(retry_strategy, self)
+    RetryIf::spawn(retry_strategy, self, RetryCondition(postgrest))
   }
 
   pub fn run_with_fix_interval(
     self,
     secs: u64,
     times: usize,
-  ) -> Retry<Take<FixedInterval>, FetchObjectUpdateAction> {
+  ) -> RetryIf<Take<FixedInterval>, FetchObjectUpdateAction, RetryCondition> {
+    let postgrest = self.postgrest.clone();
     let retry_strategy = FixedInterval::new(Duration::from_secs(secs)).take(times);
-    Retry::spawn(retry_strategy, self)
+    RetryIf::spawn(retry_strategy, self, RetryCondition(postgrest))
   }
 }
 
@@ -89,9 +93,10 @@ impl BatchFetchObjectUpdateAction {
     }
   }
 
-  pub fn run(self) -> Retry<Take<FixedInterval>, BatchFetchObjectUpdateAction> {
+  pub fn run(self) -> RetryIf<Take<FixedInterval>, BatchFetchObjectUpdateAction, RetryCondition> {
+    let postgrest = self.postgrest.clone();
     let retry_strategy = FixedInterval::new(Duration::from_secs(5)).take(3);
-    Retry::spawn(retry_strategy, self)
+    RetryIf::spawn(retry_strategy, self, RetryCondition(postgrest))
   }
 }
 
@@ -124,7 +129,7 @@ pub async fn create_snapshot(
     .from(AF_COLLAB_SNAPSHOT_TABLE)
     .insert(
       InsertParamsBuilder::new()
-        .insert(AF_COLLAB_SNAPSHOT_OID_COLUMN, object.id.clone())
+        .insert(AF_COLLAB_SNAPSHOT_OID_COLUMN, object.object_id.clone())
         .insert("name", object.ty.to_string())
         .insert(AF_COLLAB_SNAPSHOT_BLOB_COLUMN, snapshot)
         .insert(AF_COLLAB_SNAPSHOT_BLOB_SIZE_COLUMN, value_size)
@@ -165,7 +170,7 @@ pub async fn get_latest_snapshot_from_server(
       let blob = value
         .get("blob")
         .and_then(|blob| blob.as_str())
-        .and_then(decode_hex_string)?;
+        .and_then(SupabaseBinaryColumnDecoder::decode)?;
       let sid = value.get("sid").and_then(|id| id.as_i64())?;
       let created_at = value.get("created_at").and_then(|created_at| {
         created_at
@@ -269,7 +274,7 @@ fn parser_update_from_json(json: &Value) -> Result<UpdateItem, Error> {
   let some_record = json
     .get("value")
     .and_then(|value| value.as_str())
-    .and_then(decode_hex_string);
+    .and_then(SupabaseBinaryColumnDecoder::decode);
 
   let some_key = json.get("key").and_then(|value| value.as_i64());
   if let (Some(value), Some(key)) = (some_record, some_key) {
@@ -298,7 +303,9 @@ pub struct UpdateItem {
   pub value: Vec<u8>,
 }
 
-fn decode_hex_string(s: &str) -> Option<Vec<u8>> {
-  let s = s.strip_prefix("\\x")?;
-  hex::decode(s).ok()
+pub struct RetryCondition(Weak<PostgresWrapper>);
+impl Condition<anyhow::Error> for RetryCondition {
+  fn should_retry(&mut self, _error: &anyhow::Error) -> bool {
+    self.0.upgrade().is_some()
+  }
 }

@@ -1,9 +1,11 @@
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::fmt::{Display, Formatter};
+use std::sync::{Arc, Weak};
 
 use appflowy_integrate::collab_builder::{CollabStorageProvider, CollabStorageType};
-use appflowy_integrate::{CollabType, RemoteCollabStorage, YrsDocAction};
-use parking_lot::RwLock;
+use appflowy_integrate::{CollabObject, CollabType, RemoteCollabStorage, YrsDocAction};
+use parking_lot::{Mutex, RwLock};
+use serde_json::Value;
 use serde_repr::*;
 
 use flowy_database_deps::cloud::*;
@@ -17,7 +19,7 @@ use flowy_server::self_host::SelfHostServer;
 use flowy_server::supabase::SupabaseServer;
 use flowy_server::AppFlowyServer;
 use flowy_server_config::supabase_config::SupabaseConfiguration;
-use flowy_sqlite::kv::KV;
+use flowy_sqlite::kv::StorePreferences;
 use flowy_user::event_map::UserCloudServiceProvider;
 use flowy_user::services::database::{
   get_user_profile, get_user_workspace, open_collab_db, open_user_db,
@@ -37,12 +39,22 @@ pub enum ServerProviderType {
   /// Offline mode, no user authentication and the data is stored locally.
   Local = 0,
   /// Self-hosted server provider.
-  /// The [AppFlowy-Server](https://github.com/AppFlowy-IO/AppFlowy-Server) is still a work in
+  /// The [AppFlowy-Server](https://github.com/AppFlowy-IO/AppFlowy-Cloud) is still a work in
   /// progress.
-  SelfHosted = 1,
+  AppFlowyCloud = 1,
   /// Supabase server provider.
   /// It uses supabase's postgresql database to store data and user authentication.
   Supabase = 2,
+}
+
+impl Display for ServerProviderType {
+  fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    match self {
+      ServerProviderType::Local => write!(f, "Local"),
+      ServerProviderType::AppFlowyCloud => write!(f, "AppFlowyCloud"),
+      ServerProviderType::Supabase => write!(f, "Supabase"),
+    }
+  }
 }
 
 /// The [AppFlowyServerProvider] provides list of [AppFlowyServer] base on the [AuthType]. Using
@@ -52,18 +64,31 @@ pub enum ServerProviderType {
 pub struct AppFlowyServerProvider {
   config: AppFlowyCoreConfig,
   provider_type: RwLock<ServerProviderType>,
+  device_id: Mutex<String>,
   providers: RwLock<HashMap<ServerProviderType, Arc<dyn AppFlowyServer>>>,
   supabase_config: RwLock<Option<SupabaseConfiguration>>,
+  store_preferences: Weak<StorePreferences>,
 }
 
 impl AppFlowyServerProvider {
-  pub fn new(config: AppFlowyCoreConfig, supabase_config: Option<SupabaseConfiguration>) -> Self {
+  pub fn new(
+    config: AppFlowyCoreConfig,
+    provider_type: ServerProviderType,
+    supabase_config: Option<SupabaseConfiguration>,
+    store_preferences: Weak<StorePreferences>,
+  ) -> Self {
     Self {
       config,
-      provider_type: RwLock::new(current_server_provider()),
+      provider_type: RwLock::new(provider_type),
+      device_id: Default::default(),
       providers: RwLock::new(HashMap::new()),
       supabase_config: RwLock::new(supabase_config),
+      store_preferences,
     }
+  }
+
+  pub fn set_sync_device(&self, device_id: &str) {
+    *self.device_id.lock() = device_id.to_string();
   }
 
   pub fn provider_type(&self) -> ServerProviderType {
@@ -88,7 +113,7 @@ impl AppFlowyServerProvider {
 
         Ok::<Arc<dyn AppFlowyServer>, FlowyError>(server)
       },
-      ServerProviderType::SelfHosted => {
+      ServerProviderType::AppFlowyCloud => {
         let config = self_host_server_configuration().map_err(|e| {
           FlowyError::new(
             ErrorCode::InvalidAuthConfig,
@@ -109,12 +134,20 @@ impl AppFlowyServerProvider {
         Ok::<Arc<dyn AppFlowyServer>, FlowyError>(Arc::new(SupabaseServer::new(config)))
       },
     }?;
+    server.set_sync_device_id(&self.device_id.lock());
 
     self
       .providers
       .write()
       .insert(provider_type.clone(), server.clone());
     Ok(server)
+  }
+
+  pub fn handle_realtime_event(&self, json: Value) {
+    let provider_type = self.provider_type.read().clone();
+    if let Some(server) = self.providers.read().get(&provider_type) {
+      server.handle_realtime_event(json);
+    }
   }
 }
 
@@ -141,10 +174,15 @@ impl UserCloudServiceProvider for AppFlowyServerProvider {
     let provider_type: ServerProviderType = auth_type.into();
     *self.provider_type.write() = provider_type.clone();
 
-    match KV::set_object(SERVER_PROVIDER_TYPE_KEY, provider_type.clone()) {
-      Ok(_) => tracing::trace!("Update server provider type to: {:?}", provider_type),
-      Err(e) => {
-        tracing::error!("🔴Failed to update server provider type: {:?}", e);
+    match self.store_preferences.upgrade() {
+      None => tracing::error!("🔴Failed to update server provider type: store preferences is drop"),
+      Some(store_preferences) => {
+        match store_preferences.set_object(SERVER_PROVIDER_TYPE_KEY, provider_type.clone()) {
+          Ok(_) => tracing::trace!("Update server provider type to: {:?}", provider_type),
+          Err(e) => {
+            tracing::error!("🔴Failed to update server provider type: {:?}", e);
+          },
+        }
       },
     }
   }
@@ -157,6 +195,10 @@ impl UserCloudServiceProvider for AppFlowyServerProvider {
         .get_provider(&self.provider_type.read())?
         .user_service(),
     )
+  }
+
+  fn service_name(&self) -> String {
+    self.provider_type.read().to_string()
   }
 }
 
@@ -299,14 +341,18 @@ impl CollabStorageProvider for AppFlowyServerProvider {
     self.provider_type().into()
   }
 
-  fn get_storage(&self, storage_type: &CollabStorageType) -> Option<Arc<dyn RemoteCollabStorage>> {
+  fn get_storage(
+    &self,
+    collab_object: &CollabObject,
+    storage_type: &CollabStorageType,
+  ) -> Option<Arc<dyn RemoteCollabStorage>> {
     match storage_type {
       CollabStorageType::Local => None,
       CollabStorageType::AWS => None,
       CollabStorageType::Supabase => self
         .get_provider(&ServerProviderType::Supabase)
         .ok()
-        .and_then(|provider| provider.collab_storage()),
+        .and_then(|provider| provider.collab_storage(collab_object)),
     }
   }
 
@@ -324,7 +370,7 @@ impl From<AuthType> for ServerProviderType {
   fn from(auth_provider: AuthType) -> Self {
     match auth_provider {
       AuthType::Local => ServerProviderType::Local,
-      AuthType::SelfHosted => ServerProviderType::SelfHosted,
+      AuthType::SelfHosted => ServerProviderType::AppFlowyCloud,
       AuthType::Supabase => ServerProviderType::Supabase,
     }
   }
@@ -336,8 +382,8 @@ impl From<&AuthType> for ServerProviderType {
   }
 }
 
-fn current_server_provider() -> ServerProviderType {
-  match KV::get_object::<ServerProviderType>(SERVER_PROVIDER_TYPE_KEY) {
+pub fn current_server_provider(store_preferences: &Arc<StorePreferences>) -> ServerProviderType {
+  match store_preferences.get_object::<ServerProviderType>(SERVER_PROVIDER_TYPE_KEY) {
     None => ServerProviderType::Local,
     Some(provider_type) => provider_type,
   }
