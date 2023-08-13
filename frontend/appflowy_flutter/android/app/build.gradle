@@ -69,6 +69,8 @@ android {
             path 'src/main/jniLibs/CMakeLists.txt'
         }
     }
+    
+    //Eventually split ABI for google playstore
 }
 
 flutter {

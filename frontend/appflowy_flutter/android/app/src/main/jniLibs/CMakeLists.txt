@@ -67,3 +67,7 @@ elseif(${CMAKE_HOST_SYSTEM_NAME} STREQUAL "Windows")
 else()
     message("Unable to detect the platform to copy NDK Files")
 endif()
+
+# Remove cmake files after build
+file(REMOVE ${CMAKE_CURRENT_SOURCE_DIR}/CMakeCache.txt)
+file(REMOVE_RECURSE ${CMAKE_CURRENT_SOURCE_DIR}/CMakeFiles)
