@@ -353,6 +353,7 @@ class _AppFlowyEditorPageState extends State<AppFlowyEditorPage>
     final editor = Directionality(
       textDirection: textDirection,
       child: AppFlowyEditor(
+        vimMode: true,
         editorState: widget.editorState,
         editable: !isViewDeleted && !isLocked,
         disableSelectionService: UniversalPlatform.isMobile && isLocked,
