@@ -42,25 +42,16 @@ class SettingsAIView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider<SettingsAIBloc>(
-      create: (_) =>
-          SettingsAIBloc(userProfile, workspaceId, currentWorkspaceMemberRole)
-            ..add(const SettingsAIEvent.started()),
-      child: BlocBuilder<SettingsAIBloc, SettingsAIState>(
-        builder: (context, state) {
-          final children = <Widget>[
-            const AIModelSelection(),
-          ];
-
-          children.add(const _AISearchToggle(value: false));
-          children.add(const LocalAISetting());
-
-          return SettingsBody(
-            title: LocaleKeys.settings_aiPage_title.tr(),
-            description:
-                LocaleKeys.settings_aiPage_keys_aiSettingsDescription.tr(),
-            children: children,
-          );
-        },
+      create: (_) => SettingsAIBloc(userProfile, workspaceId)
+        ..add(const SettingsAIEvent.started()),
+      child: SettingsBody(
+        title: LocaleKeys.settings_aiPage_title.tr(),
+        description: LocaleKeys.settings_aiPage_keys_aiSettingsDescription.tr(),
+        children: [
+          const AIModelSelection(),
+          const _AISearchToggle(value: false),
+          const LocalAISetting(),
+        ],
       ),
     );
   }

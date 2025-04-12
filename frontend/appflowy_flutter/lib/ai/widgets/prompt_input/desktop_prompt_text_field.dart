@@ -17,20 +17,26 @@ class DesktopPromptInput extends StatefulWidget {
   const DesktopPromptInput({
     super.key,
     required this.isStreaming,
+    required this.textController,
     required this.onStopStreaming,
     required this.onSubmitted,
     required this.selectedSourcesNotifier,
     required this.onUpdateSelectedSources,
     this.hideDecoration = false,
+    this.hideFormats = false,
+    this.extraBottomActionButton,
   });
 
   final bool isStreaming;
+  final TextEditingController textController;
   final void Function() onStopStreaming;
   final void Function(String, PredefinedFormat?, Map<String, dynamic>)
       onSubmitted;
   final ValueNotifier<List<String>> selectedSourcesNotifier;
   final void Function(List<String>) onUpdateSelectedSources;
   final bool hideDecoration;
+  final bool hideFormats;
+  final Widget? extraBottomActionButton;
 
   @override
   State<DesktopPromptInput> createState() => _DesktopPromptInputState();
@@ -42,7 +48,6 @@ class _DesktopPromptInputState extends State<DesktopPromptInput> {
   final overlayController = OverlayPortalController();
   final inputControlCubit = ChatInputControlCubit();
   final focusNode = FocusNode();
-  final textController = TextEditingController();
 
   late SendButtonState sendButtonState;
   bool isComposing = false;
@@ -51,17 +56,19 @@ class _DesktopPromptInputState extends State<DesktopPromptInput> {
   void initState() {
     super.initState();
 
-    textController.addListener(handleTextControllerChanged);
-    focusNode.addListener(
-      () {
-        if (!widget.hideDecoration) {
-          setState(() {}); // refresh border color
-        }
-        if (!focusNode.hasFocus) {
-          cancelMentionPage(); // hide menu when lost focus
-        }
-      },
-    );
+    widget.textController.addListener(handleTextControllerChanged);
+    focusNode
+      ..addListener(
+        () {
+          if (!widget.hideDecoration) {
+            setState(() {}); // refresh border color
+          }
+          if (!focusNode.hasFocus) {
+            cancelMentionPage(); // hide menu when lost focus
+          }
+        },
+      )
+      ..onKeyEvent = handleKeyEvent;
 
     updateSendButtonState();
 
@@ -79,7 +86,7 @@ class _DesktopPromptInputState extends State<DesktopPromptInput> {
   @override
   void dispose() {
     focusNode.dispose();
-    textController.dispose();
+    widget.textController.removeListener(handleTextControllerChanged);
     inputControlCubit.close();
     super.dispose();
   }
@@ -104,7 +111,7 @@ class _DesktopPromptInputState extends State<DesktopPromptInput> {
           overlayChildBuilder: (context) {
             return PromptInputMentionPageMenu(
               anchor: PromptInputAnchor(textFieldKey, layerLink),
-              textController: textController,
+              textController: widget.textController,
               onPageSelected: handlePageSelected,
             );
           },
@@ -134,11 +141,11 @@ class _DesktopPromptInputState extends State<DesktopPromptInput> {
                       children: [
                         ConstrainedBox(
                           constraints: getTextFieldConstraints(
-                            state.showPredefinedFormats,
+                            state.showPredefinedFormats && !widget.hideFormats,
                           ),
                           child: inputTextField(),
                         ),
-                        if (state.showPredefinedFormats)
+                        if (state.showPredefinedFormats && !widget.hideFormats)
                           Positioned.fill(
                             bottom: null,
                             child: TextFieldTapRegion(
@@ -163,8 +170,9 @@ class _DesktopPromptInputState extends State<DesktopPromptInput> {
                           top: null,
                           child: TextFieldTapRegion(
                             child: _PromptBottomActions(
-                              showPredefinedFormats:
+                              showPredefinedFormatBar:
                                   state.showPredefinedFormats,
+                              showPredefinedFormatButton: !widget.hideFormats,
                               onTogglePredefinedFormatSection: () =>
                                   context.read<AIPromptInputBloc>().add(
                                         AIPromptInputEvent
@@ -178,6 +186,8 @@ class _DesktopPromptInputState extends State<DesktopPromptInput> {
                                   widget.selectedSourcesNotifier,
                               onUpdateSelectedSources:
                                   widget.onUpdateSelectedSources,
+                              extraBottomActionButton:
+                                  widget.extraBottomActionButton,
                             ),
                           ),
                         ),
@@ -216,12 +226,12 @@ class _DesktopPromptInputState extends State<DesktopPromptInput> {
     if (!focusNode.hasFocus) {
       focusNode.requestFocus();
     }
-    textController.text += '@';
+    widget.textController.text += '@';
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (context.mounted) {
         context
             .read<ChatInputControlCubit>()
-            .startSearching(textController.value);
+            .startSearching(widget.textController.value);
         overlayController.show();
       }
     });
@@ -237,7 +247,7 @@ class _DesktopPromptInputState extends State<DesktopPromptInput> {
   void updateSendButtonState() {
     if (widget.isStreaming) {
       sendButtonState = SendButtonState.streaming;
-    } else if (textController.text.trim().isEmpty) {
+    } else if (widget.textController.text.trim().isEmpty) {
       sendButtonState = SendButtonState.disabled;
     } else {
       sendButtonState = SendButtonState.enabled;
@@ -249,9 +259,9 @@ class _DesktopPromptInputState extends State<DesktopPromptInput> {
       return;
     }
     final trimmedText = inputControlCubit.formatIntputText(
-      textController.text.trim(),
+      widget.textController.text.trim(),
     );
-    textController.clear();
+    widget.textController.clear();
     if (trimmedText.isEmpty) {
       return;
     }
@@ -274,7 +284,7 @@ class _DesktopPromptInputState extends State<DesktopPromptInput> {
     setState(() {
       // update whether send button is clickable
       updateSendButtonState();
-      isComposing = !textController.value.composing.isCollapsed;
+      isComposing = !widget.textController.value.composing.isCollapsed;
     });
 
     if (isComposing) {
@@ -292,6 +302,7 @@ class _DesktopPromptInputState extends State<DesktopPromptInput> {
     }
 
     // handle cases where mention a page is cancelled
+    final textController = widget.textController;
     final textSelection = textController.value.selection;
     final isSelectingMultipleCharacters = !textSelection.isCollapsed;
     final isCaretBeforeStartOfRange =
@@ -338,22 +349,27 @@ class _DesktopPromptInputState extends State<DesktopPromptInput> {
   }
 
   KeyEventResult handleKeyEvent(FocusNode node, KeyEvent event) {
-    if (event.character == '@') {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        inputControlCubit.startSearching(textController.value);
-        overlayController.show();
-      });
+    // if (event.character == '@') {
+    //   WidgetsBinding.instance.addPostFrameCallback((_) {
+    //     inputControlCubit.startSearching(widget.textController.value);
+    //     overlayController.show();
+    //   });
+    // }
+    if (event is KeyDownEvent &&
+        event.logicalKey == LogicalKeyboardKey.escape) {
+      node.unfocus();
+      return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;
   }
 
   void handlePageSelected(ViewPB view) {
-    final newText = textController.text.replaceRange(
+    final newText = widget.textController.text.replaceRange(
       inputControlCubit.filterStartPosition,
       inputControlCubit.filterEndPosition,
       view.id,
     );
-    textController.value = TextEditingValue(
+    widget.textController.value = TextEditingValue(
       text: newText,
       selection: TextSelection.collapsed(
         offset: inputControlCubit.filterStartPosition + view.id.length,
@@ -378,7 +394,7 @@ class _DesktopPromptInputState extends State<DesktopPromptInput> {
                 key: textFieldKey,
                 editable: state.editable,
                 cubit: inputControlCubit,
-                textController: textController,
+                textController: widget.textController,
                 textFieldFocusNode: focusNode,
                 contentPadding:
                     calculateContentPadding(state.showPredefinedFormats),
@@ -558,16 +574,19 @@ class PromptInputTextField extends StatelessWidget {
 class _PromptBottomActions extends StatelessWidget {
   const _PromptBottomActions({
     required this.sendButtonState,
-    required this.showPredefinedFormats,
+    required this.showPredefinedFormatBar,
+    required this.showPredefinedFormatButton,
     required this.onTogglePredefinedFormatSection,
     required this.onStartMention,
     required this.onSendPressed,
     required this.onStopStreaming,
     required this.selectedSourcesNotifier,
     required this.onUpdateSelectedSources,
+    this.extraBottomActionButton,
   });
 
-  final bool showPredefinedFormats;
+  final bool showPredefinedFormatBar;
+  final bool showPredefinedFormatButton;
   final void Function() onTogglePredefinedFormatSection;
   final void Function() onStartMention;
   final SendButtonState sendButtonState;
@@ -575,6 +594,7 @@ class _PromptBottomActions extends StatelessWidget {
   final void Function() onStopStreaming;
   final ValueNotifier<List<String>> selectedSourcesNotifier;
   final void Function(List<String>) onUpdateSelectedSources;
+  final Widget? extraBottomActionButton;
 
   @override
   Widget build(BuildContext context) {
@@ -583,18 +603,27 @@ class _PromptBottomActions extends StatelessWidget {
       margin: DesktopAIChatSizes.inputActionBarMargin,
       child: BlocBuilder<AIPromptInputBloc, AIPromptInputState>(
         builder: (context, state) {
-          if (state.localAIState == null) {
-            return Align(
-              alignment: AlignmentDirectional.centerEnd,
-              child: _sendButton(),
-            );
-          }
           return Row(
             children: [
-              _predefinedFormatButton(),
+              if (showPredefinedFormatButton) ...[
+                _predefinedFormatButton(),
+                const HSpace(
+                  DesktopAIChatSizes.inputActionBarButtonSpacing,
+                ),
+              ],
+              SelectModelMenu(
+                aiModelStateNotifier:
+                    context.read<AIPromptInputBloc>().aiModelStateNotifier,
+              ),
               const Spacer(),
               if (state.aiType.isCloud) ...[
-                _selectSourcesButton(context),
+                _selectSourcesButton(),
+                const HSpace(
+                  DesktopAIChatSizes.inputActionBarButtonSpacing,
+                ),
+              ],
+              if (extraBottomActionButton != null) ...[
+                extraBottomActionButton!,
                 const HSpace(
                   DesktopAIChatSizes.inputActionBarButtonSpacing,
                 ),
@@ -619,12 +648,12 @@ class _PromptBottomActions extends StatelessWidget {
 
   Widget _predefinedFormatButton() {
     return PromptInputDesktopToggleFormatButton(
-      showFormatBar: showPredefinedFormats,
+      showFormatBar: showPredefinedFormatBar,
       onTap: onTogglePredefinedFormatSection,
     );
   }
 
-  Widget _selectSourcesButton(BuildContext context) {
+  Widget _selectSourcesButton() {
     return PromptInputDesktopSelectSourcesButton(
       onUpdateSelectedSources: onUpdateSelectedSources,
       selectedSourcesNotifier: selectedSourcesNotifier,

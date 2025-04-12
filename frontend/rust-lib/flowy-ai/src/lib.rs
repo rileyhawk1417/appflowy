@@ -6,8 +6,13 @@ mod chat;
 mod completion;
 pub mod entities;
 mod local_ai;
+
+// #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+// pub mod mcp;
+
 mod middleware;
 pub mod notification;
 mod persistence;
 mod protobuf;
 mod stream_message;
+mod util;

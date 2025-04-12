@@ -256,6 +256,12 @@
       "bulletWithImageDescription": "@:chat.changeFormat.bullet مع الصورة",
       "tableWithImageDescription": "@:chat.changeFormat.table مع الصورة"
     },
+    "switchModel": {
+      "label": "تبديل النموذج",
+      "localModel": "النموذج المحلي",
+      "cloudModel": "نموذج السحابة",
+      "autoModel": "آلي"
+    },
     "selectBanner": {
       "saveButton": "أضف إلى...",
       "selectMessages": "حدد الرسائل",
@@ -858,6 +864,8 @@
         "localAILoading": "جاري تحميل نموذج الدردشة المحلية للذكاء الاصطناعي...",
         "localAIStopped": "تم إيقاف الذكاء الاصطناعي المحلي",
         "localAIRunning": "الذكاء الاصطناعي المحلي قيد التشغيل",
+        "localAINotReadyRetryLater": "جاري تهيئة الذكاء الاصطناعي المحلي، يرجى المحاولة مرة أخرى لاحقًا",
+        "localAIDisabled": "أنت تستخدم الذكاء الاصطناعي المحلي، ولكنه مُعطّل. يُرجى الانتقال إلى الإعدادات لتفعيله أو تجربة نموذج آخر.",
         "localAIInitializing": "يتم تهيئة الذكاء الاصطناعي المحلي وقد يستغرق الأمر بضع دقائق، حسب جهازك",
         "localAINotReadyTextFieldPrompt": "لا يمكنك التحرير أثناء تحميل الذكاء الاصطناعي المحلي",
         "failToLoadLocalAI": "فشل في بدء تشغيل الذكاء الاصطناعي المحلي",
@@ -875,9 +883,13 @@
         "activeOfflineAI": "نشط",
         "downloadOfflineAI": "التنزيل",
         "openModelDirectory": "افتح المجلد",
-        "localAISetupInstruction1": "اتبع هؤلاء",
-        "localAISetupInstruction2": "التعليمات",
-        "localAISetupInstruction3": "لإعداد Ollama وAppFlowy Local AI. تخطَّ هذه الخطوة إذا كنت قد قمت بإعدادها بالفعل",
+        "laiNotReady": "لم يتم تثبيت تطبيق الذكاء الاصطناعي المحلي بشكل صحيح.",
+        "ollamaNotReady": "خادم Ollama غير جاهز.",
+        "pleaseFollowThese": "اتبع هؤلاء",
+        "instructions": "التعليمات",
+        "installOllamaLai": "لإعداد Ollama وAppFlowy Local AI. تخطَّ هذه الخطوة إذا كنت قد قمت بإعدادها بالفعل",
+        "modelsMissing": "لم يتم العثور على النماذج المطلوبة.",
+        "downloadModel": "لتنزيلها.",
         "startLocalAI": "قد يستغرق الأمر بضع ثوانٍ لبدء تشغيل الذكاء الاصطناعي المحلي"
       }
     },
@@ -2133,6 +2145,7 @@
     "toolbar": {
       "resetToDefaultFont": "إعادة تعيين إلى الافتراضي",
       "textSize": "حجم النص",
+      "textColor": "لون النص",
       "h1": "العنوان 1",
       "h2": "العنوان 2",
       "h3": "العنوان 3",
@@ -2143,9 +2156,15 @@
       "textAlign": "محاذاة النص",
       "moreOptions": "المزيد من الخيارات",
       "font": "الخط",
+      "inlineCode": "الكود المضمن",
       "suggestions": "اقتراحات",
       "turnInto": "تحول إلى",
-      "equation": "معادلة"
+      "equation": "معادلة",
+      "insert": "إدراج",
+      "linkInputHint": "لصق الرابط أو البحث عن الصفحات",
+      "pageOrURL": "الصفحة أو عنوان URL",
+      "linkName": "اسم الرابط",
+      "linkNameHint": "اسم رابط الإدخال"
     },
     "errorBlock": {
       "theBlockIsNotSupported": "الإصدار الحالي لا يدعم هذا الحقل.",
@@ -2610,12 +2629,12 @@
         "dialogTitle": "حذف الحساب",
         "dialogContent1": "هل أنت متأكد أنك تريد حذف حسابك نهائياً؟",
         "dialogContent2": "لا يمكن التراجع عن هذا الإجراء، وسوف يؤدي إلى إزالة الوصول من جميع مساحات العمل، ومسح حسابك بالكامل، بما في ذلك مساحات العمل الخاصة، وإزالتك من جميع مساحات العمل المشتركة.",
-        "confirmHint1": "من فضلك اكتب \"حذف حسابي\" للتأكيد.",
+        "confirmHint1": "من فضلك اكتب \"@:newSettings.myAccount.deleteAccount.confirmHint3\" للتأكيد.",
         "confirmHint2": "أفهم أن هذا الإجراء لا رجعة فيه وسيؤدي إلى حذف حسابي وجميع البيانات المرتبطة به بشكل دائم.",
         "confirmHint3": "حذف حسابي",
         "checkToConfirmError": "يجب عليك تحديد المربع لتأكيد الحذف",
         "failedToGetCurrentUser": "فشل في الحصول على البريد الإلكتروني الحالي للمستخدم",
-        "confirmTextValidationFailed": "نص التأكيد الخاص بك لا يتطابق مع \"حذف حسابي\"",
+        "confirmTextValidationFailed": "نص التأكيد الخاص بك لا يتطابق مع \"@:newSettings.myAccount.deleteAccount.confirmHint3\"",
         "deleteAccountSuccess": "تم حذف الحساب بنجاح"
       }
     },
@@ -3187,7 +3206,8 @@
     "editing": "تحرير",
     "analyzing": "تحليل",
     "continueWritingEmptyDocumentTitle": "استمر في كتابة الخطأ",
-    "continueWritingEmptyDocumentDescription": "نواجه مشكلة في توسيع نطاق المحتوى في مستندك. اكتب مقدمة قصيرة وسنتولى الأمر من هناك!"
+    "continueWritingEmptyDocumentDescription": "نواجه مشكلة في توسيع نطاق المحتوى في مستندك. اكتب مقدمة قصيرة وسنتولى الأمر من هناك!",
+    "more": "أكثر"
   },
   "autoUpdate": {
     "criticalUpdateTitle": "التحديث ضروري للمتابعة",

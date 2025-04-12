@@ -10,8 +10,9 @@ use crate::ai_manager::AIManager;
 use crate::event_handler::*;
 
 pub fn init(ai_manager: Weak<AIManager>) -> AFPlugin {
-  let user_service = Arc::downgrade(&ai_manager.upgrade().unwrap().user_service);
-  let cloud_service = Arc::downgrade(&ai_manager.upgrade().unwrap().cloud_service_wm);
+  let strong_ai_manager = ai_manager.upgrade().unwrap();
+  let user_service = Arc::downgrade(&strong_ai_manager.user_service);
+  let cloud_service = Arc::downgrade(&strong_ai_manager.cloud_service_wm);
   let ai_tools = Arc::new(AICompletion::new(cloud_service, user_service));
   AFPlugin::new()
     .name("flowy-ai")
@@ -29,18 +30,22 @@ pub fn init(ai_manager: Weak<AIManager>) -> AFPlugin {
     .event(AIEvent::RestartLocalAI, restart_local_ai_handler)
     .event(AIEvent::ToggleLocalAI, toggle_local_ai_handler)
     .event(AIEvent::GetLocalAIState, get_local_ai_state_handler)
-    .event(AIEvent::GetLocalAIDownloadLink, get_offline_app_handler)
     .event(AIEvent::GetLocalAISetting, get_local_ai_setting_handler)
     .event(
       AIEvent::UpdateLocalAISetting,
       update_local_ai_setting_handler,
     )
-    .event(AIEvent::GetAvailableModels, get_model_list_handler)
+    .event(
+      AIEvent::GetServerAvailableModels,
+      get_server_model_list_handler,
+    )
     .event(AIEvent::CreateChatContext, create_chat_context_handler)
     .event(AIEvent::GetChatInfo, create_chat_context_handler)
     .event(AIEvent::GetChatSettings, get_chat_settings_handler)
     .event(AIEvent::UpdateChatSettings, update_chat_settings_handler)
     .event(AIEvent::RegenerateResponse, regenerate_response_handler)
+    .event(AIEvent::GetAvailableModels, get_chat_models_handler)
+    .event(AIEvent::UpdateSelectedModel, update_selected_model_handler)
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Display, Hash, ProtoBuf_Enum, Flowy_Event)]
@@ -87,9 +92,6 @@ pub enum AIEvent {
   #[event(output = "LocalAIPB")]
   GetLocalAIState = 19,
 
-  #[event(output = "LocalAIAppLinkPB")]
-  GetLocalAIDownloadLink = 22,
-
   #[event(input = "CreateChatContextPB")]
   CreateChatContext = 23,
 
@@ -105,12 +107,18 @@ pub enum AIEvent {
   #[event(input = "RegenerateResponsePB")]
   RegenerateResponse = 27,
 
-  #[event(output = "ModelConfigPB")]
-  GetAvailableModels = 28,
+  #[event(output = "AvailableModelsPB")]
+  GetServerAvailableModels = 28,
 
   #[event(output = "LocalAISettingPB")]
   GetLocalAISetting = 29,
 
   #[event(input = "LocalAISettingPB")]
   UpdateLocalAISetting = 30,
+
+  #[event(input = "AvailableModelsQueryPB", output = "AvailableModelsPB")]
+  GetAvailableModels = 31,
+
+  #[event(input = "UpdateSelectedModelPB")]
+  UpdateSelectedModel = 32,
 }

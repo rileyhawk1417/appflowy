@@ -28,6 +28,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:universal_platform/universal_platform.dart';
 
+import 'editor_plugins/desktop_toolbar/link/link_hover_menu.dart';
 import 'editor_plugins/toolbar_item/more_option_toolbar_item.dart';
 
 class EditorStyleCustomizer {
@@ -134,6 +135,7 @@ class EditorStyleCustomizer {
       textSpanDecorator: customizeAttributeDecorator,
       textScaleFactor:
           context.watch<AppearanceSettingsCubit>().state.textScaleFactor,
+      textSpanOverlayBuilder: _buildTextSpanOverlay,
     );
   }
 
@@ -468,14 +470,15 @@ class EditorStyleCustomizer {
       );
     }
 
-    return defaultTextSpanDecoratorForAttribute(
-      context,
-      node,
-      index,
-      text,
-      before,
-      after,
-    );
+    if (href != null) {
+      return TextSpan(
+        style: before.style,
+        text: text.text,
+        mouseCursor: SystemMouseCursors.click,
+      );
+    } else {
+      return before;
+    }
   }
 
   Widget buildToolbarItemTooltip(
@@ -565,7 +568,6 @@ class EditorStyleCustomizer {
     if (style == null) {
       return null;
     }
-    final fontSize = style.fontSize ?? 14.0;
     final isLight = Theme.of(context).isLightMode;
     final textColor = isLight ? Color(0xFF007296) : Color(0xFF49CFF4);
     final underlineColor = isLight ? Color(0x33005A7A) : Color(0x3349CFF4);
@@ -575,19 +577,62 @@ class EditorStyleCustomizer {
           decoration: TextDecoration.lineThrough,
         ),
       AiWriterBlockKeys.suggestionReplacement => style.copyWith(
-          color: Colors.transparent,
+          color: textColor,
           decoration: TextDecoration.underline,
           decorationColor: underlineColor,
           decorationThickness: 1.0,
-          // hack: https://jtmuller5.medium.com/the-ultimate-guide-to-underlining-text-in-flutter-57936f5c79bb
-          shadows: [
-            Shadow(
-              color: textColor,
-              offset: Offset(0, -fontSize * 0.2),
-            ),
-          ],
         ),
       _ => style,
     };
+  }
+
+  List<Widget> _buildTextSpanOverlay(
+    BuildContext context,
+    Node node,
+    SelectableMixin delegate,
+  ) {
+    final delta = node.delta;
+    if (delta == null) {
+      return [];
+    }
+    final widgets = <Widget>[];
+    final textInserts = delta.whereType<TextInsert>();
+    int index = 0;
+    final editorState = context.read<EditorState>();
+    for (final textInsert in textInserts) {
+      if (textInsert.attributes?.href != null) {
+        final nodeSelection = Selection(
+          start: Position(path: node.path, offset: index),
+          end: Position(
+            path: node.path,
+            offset: index + textInsert.length,
+          ),
+        );
+        final rectList = delegate.getRectsInSelection(nodeSelection);
+        if (rectList.isNotEmpty) {
+          for (final rect in rectList) {
+            widgets.add(
+              Positioned(
+                left: rect.left,
+                top: rect.top,
+                child: SizedBox(
+                  width: rect.width,
+                  height: rect.height,
+                  child: LinkHoverTrigger(
+                    editorState: editorState,
+                    selection: nodeSelection,
+                    attribute: textInsert.attributes!,
+                    node: node,
+                    size: rect.size,
+                  ),
+                ),
+              ),
+            );
+          }
+        }
+      }
+      index += textInsert.length;
+    }
+    return widgets;
   }
 }

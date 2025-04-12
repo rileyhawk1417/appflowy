@@ -1,10 +1,45 @@
+import 'dart:async';
+
 import 'package:appflowy/shared/markdown_to_document.dart';
 import 'package:appflowy_editor/appflowy_editor.dart';
 
 import '../ai_writer_block_component.dart';
 import 'ai_writer_entities.dart';
+import 'ai_writer_node_extension.dart';
 
-Future<void> removeAiWriterNode(EditorState editorState, Node node) async {
+Future<void> setAiWriterNodeIsInitialized(
+  EditorState editorState,
+  Node node,
+) async {
+  final transaction = editorState.transaction
+    ..updateNode(node, {
+      AiWriterBlockKeys.isInitialized: true,
+    });
+
+  await editorState.apply(
+    transaction,
+    options: const ApplyOptions(
+      recordUndo: false,
+      inMemoryUpdate: true,
+    ),
+    withUpdateSelection: false,
+  );
+
+  final selection = node.aiWriterSelection;
+  if (selection != null && !selection.isCollapsed) {
+    unawaited(
+      editorState.updateSelectionWithReason(
+        selection,
+        extraInfo: {selectionExtraInfoDisableToolbar: true},
+      ),
+    );
+  }
+}
+
+Future<void> removeAiWriterNode(
+  EditorState editorState,
+  Node node,
+) async {
   final transaction = editorState.transaction..deleteNode(node);
   await editorState.apply(
     transaction,
@@ -13,16 +48,16 @@ Future<void> removeAiWriterNode(EditorState editorState, Node node) async {
   );
 }
 
-void formatSelection(
+Future<void> formatSelection(
   EditorState editorState,
   Selection selection,
-  Transaction transaction,
   ApplySuggestionFormatType formatType,
-) {
+) async {
   final nodes = editorState.getNodesInSelection(selection).toList();
   if (nodes.isEmpty) {
     return;
   }
+  final transaction = editorState.transaction;
 
   if (nodes.length == 1) {
     final node = nodes.removeAt(0);
@@ -68,29 +103,43 @@ void formatSelection(
   }
 
   transaction.compose();
+  await editorState.apply(
+    transaction,
+    options: ApplyOptions(
+      inMemoryUpdate: true,
+      recordUndo: false,
+    ),
+    withUpdateSelection: false,
+  );
 }
 
-Position ensurePreviousNodeIsEmptyParagraph(
+Future<Position> ensurePreviousNodeIsEmptyParagraph(
   EditorState editorState,
   Node aiWriterNode,
-  Transaction transaction,
-) {
+) async {
   final previous = aiWriterNode.previous;
   final needsEmptyParagraphNode = previous == null ||
       previous.type != ParagraphBlockKeys.type ||
       (previous.delta?.toPlainText().isNotEmpty ?? false);
 
   final Position position;
+  final transaction = editorState.transaction;
+
   if (needsEmptyParagraphNode) {
     position = Position(path: aiWriterNode.path);
     transaction.insertNode(aiWriterNode.path, paragraphNode());
   } else {
     position = Position(path: previous.path);
   }
+  transaction.afterSelection = Selection.collapsed(position);
 
-  transaction.updateNode(aiWriterNode, {
-    AiWriterBlockKeys.isInitialized: true,
-  });
+  await editorState.apply(
+    transaction,
+    options: ApplyOptions(
+      inMemoryUpdate: true,
+      recordUndo: false,
+    ),
+  );
 
   return position;
 }

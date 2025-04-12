@@ -246,11 +246,17 @@
       "number": "Numbered list",
       "table": "Table",
       "blankDescription": "Format response",
-      "defaultDescription": "Auto mode",
+      "defaultDescription": "Auto response format",
       "textWithImageDescription": "@:chat.changeFormat.text with image",
       "numberWithImageDescription": "@:chat.changeFormat.number with image",
       "bulletWithImageDescription": "@:chat.changeFormat.bullet with image",
       "tableWithImageDescription": "@:chat.changeFormat.table with image"
+    },
+    "switchModel": {
+      "label": "Switch model",
+      "localModel": "Local Model",
+      "cloudModel": "Cloud Model",
+      "autoModel": "Auto"
     },
     "selectBanner": {
       "saveButton": "Add to …",
@@ -301,7 +307,8 @@
   "questionBubble": {
     "shortcuts": "Shortcuts",
     "whatsNew": "What's new?",
-    "help": "Help & Support",
+    "helpAndDocumentation": "Help & documentation",
+    "getSupport": "Get support",
     "markdown": "Markdown",
     "debug": {
       "name": "Debug Info",
@@ -501,7 +508,8 @@
       "settings": "Settings",
       "members": "Members",
       "trash": "Trash",
-      "helpAndSupport": "Help & Support"
+      "helpAndDocumentation": "Help & documentation",
+      "getSupport": "Get Support"
     },
     "sites": {
       "title": "Sites",
@@ -848,14 +856,16 @@
         "downloadAIModelButton": "Download",
         "downloadingModel": "Downloading",
         "localAILoaded": "Local AI Model successfully added and ready to use",
-        "localAIStart": "Local AI is starting. If it’s slow, try toggling it off and on",
+        "localAIStart": "Local AI is starting. If it's slow, try toggling it off and on",
         "localAILoading": "Local AI Chat Model is loading...",
         "localAIStopped": "Local AI stopped",
         "localAIRunning": "Local AI is running",
-        "localAIInitializing": "Local AI is loading and may take a few minutes, depending on your device",
+        "localAINotReadyRetryLater": "Local AI is initializing, please retry later",
+        "localAIDisabled": "You are using local AI, but it is disabled. Please go to settings to enable it or try different model",
+        "localAIInitializing": "Local AI is loading. This may take a few seconds depending on your device",
         "localAINotReadyTextFieldPrompt": "You can not edit while Local AI is loading",
-        "failToLoadLocalAI": "Failed to start local AI",
-        "restartLocalAI": "Restart Local AI",
+        "failToLoadLocalAI": "Failed to start local AI.",
+        "restartLocalAI": "Restart",
         "disableLocalAITitle": "Disable local AI",
         "disableLocalAIDescription": "Do you want to disable local AI?",
         "localAIToggleTitle": "AppFlowy Local AI (LAI)",
@@ -869,10 +879,13 @@
         "activeOfflineAI": "Active",
         "downloadOfflineAI": "Download",
         "openModelDirectory": "Open folder",
-        "localAISetupInstruction1": "Follow these",
-        "localAISetupInstruction2": "instructions",
-        "localAISetupInstruction3": "to set up Ollama and AppFlowy Local AI. Skip if you've already set it up",
-        "startLocalAI": "It may take a few seconds to start the local AI"
+        "laiNotReady": "The Local AI app was not installed correctly.",
+        "ollamaNotReady": "The Ollama server is not ready.",
+        "pleaseFollowThese": "Please follow these",
+        "instructions": "instructions",
+        "installOllamaLai": "to set up Ollama and AppFlowy Local AI.",
+        "modelsMissing": "Cannot find the required models: ",
+        "downloadModel": "to download them."
       }
     },
     "planPage": {
@@ -1634,7 +1647,7 @@
     },
     "url": {
       "launch": "Open link in browser",
-      "copy": "Copy link to clipboard",
+      "copy": "Copied link to clipboard",
       "textFieldHint": "Enter a URL",
       "copiedNotification": "Copied to clipboard!"
     },
@@ -2120,7 +2133,12 @@
       "inlineCode": "Inline code",
       "suggestions": "Suggestions",
       "turnInto": "Turn into",
-      "equation": "Equation"
+      "equation": "Equation",
+      "insert": "Insert",
+      "linkInputHint": "Paste link or search pages",
+      "pageOrURL": "Page or URL",
+      "linkName": "Link Name",
+      "linkNameHint": "Input link name"
     },
     "errorBlock": {
       "theBlockIsNotSupported": "Unable to parse the block content",
@@ -2583,12 +2601,12 @@
         "dialogTitle": "Delete account",
         "dialogContent1": "Are you sure you want to permanently delete your account?",
         "dialogContent2": "This action cannot be undone, and will remove access from all workspaces, erasing your entire account, including private workspaces, and removing you from all shared workspaces.",
-        "confirmHint1": "Please type \"DELETE MY ACCOUNT\" to confirm.",
+        "confirmHint1": "Please type \"@:newSettings.myAccount.deleteAccount.confirmHint3\" to confirm.",
         "confirmHint2": "I understand that this action is irreversible and will permanently delete my account and all associated data.",
         "confirmHint3": "DELETE MY ACCOUNT",
         "checkToConfirmError": "You must check the box to confirm deletion",
         "failedToGetCurrentUser": "Failed to get current user email",
-        "confirmTextValidationFailed": "Your confirmation text does not match \"DELETE MY ACCOUNT\"",
+        "confirmTextValidationFailed": "Your confirmation text does not match \"@:newSettings.myAccount.deleteAccount.confirmHint3\"",
         "deleteAccountSuccess": "Account deleted successfully"
       }
     },
@@ -3160,7 +3178,8 @@
     "editing": "Editing",
     "analyzing": "Analyzing",
     "continueWritingEmptyDocumentTitle": "Continue writing error",
-    "continueWritingEmptyDocumentDescription": "We are having trouble expanding on the content in your document. Write a small intro and we can take it from there!"
+    "continueWritingEmptyDocumentDescription": "We are having trouble expanding on the content in your document. Write a small intro and we can take it from there!",
+    "more": "More"
   },
   "autoUpdate": {
     "criticalUpdateTitle": "Update required to continue",

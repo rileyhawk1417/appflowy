@@ -99,6 +99,10 @@ impl FlowyError {
     self.code == ErrorCode::LocalAINotReady
   }
 
+  pub fn is_local_ai_disabled(&self) -> bool {
+    self.code == ErrorCode::LocalAIDisabled
+  }
+
   pub fn is_ai_max_required(&self) -> bool {
     self.code == ErrorCode::AIMaxRequired
   }
@@ -156,6 +160,7 @@ impl FlowyError {
 
   static_flowy_error!(view_is_locked, ErrorCode::ViewIsLocked);
   static_flowy_error!(local_ai_not_ready, ErrorCode::LocalAINotReady);
+  static_flowy_error!(local_ai_disabled, ErrorCode::LocalAIDisabled);
 }
 
 impl std::convert::From<ErrorCode> for FlowyError {
@@ -249,5 +254,11 @@ impl From<collab::error::CollabError> for FlowyError {
       CollabError::UpdateFailed(err) => FlowyError::internal().with_context(err),
       CollabError::Internal(err) => FlowyError::internal().with_context(err),
     }
+  }
+}
+
+impl From<uuid::Error> for FlowyError {
+  fn from(value: uuid::Error) -> Self {
+    FlowyError::internal().with_context(value)
   }
 }

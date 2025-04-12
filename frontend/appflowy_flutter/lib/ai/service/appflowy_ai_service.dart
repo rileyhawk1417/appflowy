@@ -15,6 +15,11 @@ import 'package:fixnum/fixnum.dart' as fixnum;
 import 'ai_entities.dart';
 import 'error.dart';
 
+enum LocalAIStreamingState {
+  notReady,
+  disabled,
+}
+
 abstract class AIRepository {
   Future<void> streamCompletion({
     String? objectId,
@@ -24,9 +29,12 @@ abstract class AIRepository {
     List<AiWriterRecord> history = const [],
     required CompletionTypePB completionType,
     required Future<void> Function() onStart,
-    required Future<void> Function(String text) onProcess,
+    required Future<void> Function(String text) processMessage,
+    required Future<void> Function(String text) processAssistMessage,
     required Future<void> Function() onEnd,
     required void Function(AIError error) onError,
+    required void Function(LocalAIStreamingState state)
+        onLocalAIStreamingStateChange,
   });
 }
 
@@ -40,15 +48,20 @@ class AppFlowyAIService implements AIRepository {
     List<AiWriterRecord> history = const [],
     required CompletionTypePB completionType,
     required Future<void> Function() onStart,
-    required Future<void> Function(String text) onProcess,
+    required Future<void> Function(String text) processMessage,
+    required Future<void> Function(String text) processAssistMessage,
     required Future<void> Function() onEnd,
     required void Function(AIError error) onError,
+    required void Function(LocalAIStreamingState state)
+        onLocalAIStreamingStateChange,
   }) async {
     final stream = AppFlowyCompletionStream(
       onStart: onStart,
-      onProcess: onProcess,
+      processMessage: processMessage,
+      processAssistMessage: processAssistMessage,
+      processError: onError,
+      onLocalAIStreamingStateChange: onLocalAIStreamingStateChange,
       onEnd: onEnd,
-      onError: onError,
     );
 
     final records = history.map((record) => record.toPB()).toList();
@@ -79,23 +92,30 @@ class AppFlowyAIService implements AIRepository {
 abstract class CompletionStream {
   CompletionStream({
     required this.onStart,
-    required this.onProcess,
+    required this.processMessage,
+    required this.processAssistMessage,
+    required this.processError,
+    required this.onLocalAIStreamingStateChange,
     required this.onEnd,
-    required this.onError,
   });
 
   final Future<void> Function() onStart;
-  final Future<void> Function(String text) onProcess;
+  final Future<void> Function(String text) processMessage;
+  final Future<void> Function(String text) processAssistMessage;
+  final void Function(AIError error) processError;
+  final void Function(LocalAIStreamingState state)
+      onLocalAIStreamingStateChange;
   final Future<void> Function() onEnd;
-  final void Function(AIError error) onError;
 }
 
 class AppFlowyCompletionStream extends CompletionStream {
   AppFlowyCompletionStream({
     required super.onStart,
-    required super.onProcess,
+    required super.processMessage,
+    required super.processAssistMessage,
+    required super.processError,
     required super.onEnd,
-    required super.onError,
+    required super.onLocalAIStreamingStateChange,
   }) {
     _startListening();
   }
@@ -109,51 +129,7 @@ class AppFlowyCompletionStream extends CompletionStream {
     _port.handler = _controller.add;
     _subscription = _controller.stream.listen(
       (event) async {
-        if (event == "AI_RESPONSE_LIMIT") {
-          onError(
-            AIError(
-              message: LocaleKeys.ai_textLimitReachedDescription.tr(),
-              code: AIErrorCode.aiResponseLimitExceeded,
-            ),
-          );
-        }
-
-        if (event == "AI_IMAGE_RESPONSE_LIMIT") {
-          onError(
-            AIError(
-              message: LocaleKeys.ai_imageLimitReachedDescription.tr(),
-              code: AIErrorCode.aiImageResponseLimitExceeded,
-            ),
-          );
-        }
-
-        if (event.startsWith("AI_MAX_REQUIRED:")) {
-          final msg = event.substring(16);
-          onError(
-            AIError(
-              message: msg,
-              code: AIErrorCode.other,
-            ),
-          );
-        }
-
-        if (event.startsWith("start:")) {
-          await onStart();
-        }
-
-        if (event.startsWith("data:")) {
-          await onProcess(event.substring(5));
-        }
-
-        if (event.startsWith("finish:")) {
-          await onEnd();
-        }
-
-        if (event.startsWith("error:")) {
-          onError(
-            AIError(message: event.substring(6), code: AIErrorCode.other),
-          );
-        }
+        await _handleEvent(event);
       },
     );
   }
@@ -162,5 +138,67 @@ class AppFlowyCompletionStream extends CompletionStream {
     await _controller.close();
     await _subscription.cancel();
     _port.close();
+  }
+
+  Future<void> _handleEvent(String event) async {
+    // Check simple matches first
+    if (event == AIStreamEventPrefix.aiResponseLimit) {
+      processError(
+        AIError(
+          message: LocaleKeys.ai_textLimitReachedDescription.tr(),
+          code: AIErrorCode.aiResponseLimitExceeded,
+        ),
+      );
+      return;
+    }
+
+    if (event == AIStreamEventPrefix.aiImageResponseLimit) {
+      processError(
+        AIError(
+          message: LocaleKeys.ai_imageLimitReachedDescription.tr(),
+          code: AIErrorCode.aiImageResponseLimitExceeded,
+        ),
+      );
+      return;
+    }
+
+    // Otherwise, parse out prefix:content
+    if (event.startsWith(AIStreamEventPrefix.aiMaxRequired)) {
+      processError(
+        AIError(
+          message: event.substring(AIStreamEventPrefix.aiMaxRequired.length),
+          code: AIErrorCode.other,
+        ),
+      );
+    } else if (event.startsWith(AIStreamEventPrefix.start)) {
+      await onStart();
+    } else if (event.startsWith(AIStreamEventPrefix.data)) {
+      await processMessage(
+        event.substring(AIStreamEventPrefix.data.length),
+      );
+    } else if (event.startsWith(AIStreamEventPrefix.comment)) {
+      await processAssistMessage(
+        event.substring(AIStreamEventPrefix.comment.length),
+      );
+    } else if (event.startsWith(AIStreamEventPrefix.finish)) {
+      await onEnd();
+    } else if (event.startsWith(AIStreamEventPrefix.localAIDisabled)) {
+      onLocalAIStreamingStateChange(
+        LocalAIStreamingState.disabled,
+      );
+    } else if (event.startsWith(AIStreamEventPrefix.localAINotReady)) {
+      onLocalAIStreamingStateChange(
+        LocalAIStreamingState.notReady,
+      );
+    } else if (event.startsWith(AIStreamEventPrefix.error)) {
+      processError(
+        AIError(
+          message: event.substring(AIStreamEventPrefix.error.length),
+          code: AIErrorCode.other,
+        ),
+      );
+    } else {
+      Log.debug('Unknown AI event: $event');
+    }
   }
 }

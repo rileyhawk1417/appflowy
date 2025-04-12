@@ -357,7 +357,7 @@ pub enum ErrorCode {
   #[error("Requested namespace has one or more invalid characters")]
   CustomNamespaceInvalidCharacter = 122,
 
-  #[error("Requested namespace has one or more invalid characters")]
+  #[error("AI Service is unavailable")]
   AIServiceUnavailable = 123,
 
   #[error("AI Image Response limit exceeded")]
@@ -374,6 +374,12 @@ pub enum ErrorCode {
 
   #[error("Local AI is not ready")]
   LocalAINotReady = 128,
+
+  #[error("MCP error")]
+  MCPError = 129,
+
+  #[error("Local AI disabled")]
+  LocalAIDisabled = 130,
 }
 
 impl ErrorCode {

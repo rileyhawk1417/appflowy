@@ -26,9 +26,12 @@ class _MockAIRepository extends Mock implements AppFlowyAIService {
     List<AiWriterRecord> history = const [],
     required CompletionTypePB completionType,
     required Future<void> Function() onStart,
-    required Future<void> Function(String text) onProcess,
+    required Future<void> Function(String text) processMessage,
+    required Future<void> Function(String text) processAssistMessage,
     required Future<void> Function() onEnd,
     required void Function(AIError error) onError,
+    required void Function(LocalAIStreamingState state)
+        onLocalAIStreamingStateChange,
   }) async {
     final stream = _MockCompletionStream();
     unawaited(
@@ -37,7 +40,7 @@ class _MockAIRepository extends Mock implements AppFlowyAIService {
         final lines = text.split('\n');
         for (final line in lines) {
           if (line.isNotEmpty) {
-            await onProcess('$_aiResponse $line\n\n');
+            await processMessage('$_aiResponse $line\n\n');
           }
         }
         await onEnd();
@@ -57,16 +60,19 @@ class _MockAIRepositoryLess extends Mock implements AppFlowyAIService {
     List<AiWriterRecord> history = const [],
     required CompletionTypePB completionType,
     required Future<void> Function() onStart,
-    required Future<void> Function(String text) onProcess,
+    required Future<void> Function(String text) processMessage,
+    required Future<void> Function(String text) processAssistMessage,
     required Future<void> Function() onEnd,
     required void Function(AIError error) onError,
+    required void Function(LocalAIStreamingState state)
+        onLocalAIStreamingStateChange,
   }) async {
     final stream = _MockCompletionStream();
     unawaited(
       Future(() async {
         await onStart();
         // only return 1 line.
-        await onProcess('Hello World');
+        await processMessage('Hello World');
         await onEnd();
       }),
     );
@@ -84,9 +90,12 @@ class _MockAIRepositoryMore extends Mock implements AppFlowyAIService {
     List<AiWriterRecord> history = const [],
     required CompletionTypePB completionType,
     required Future<void> Function() onStart,
-    required Future<void> Function(String text) onProcess,
+    required Future<void> Function(String text) processMessage,
+    required Future<void> Function(String text) processAssistMessage,
     required Future<void> Function() onEnd,
     required void Function(AIError error) onError,
+    required void Function(LocalAIStreamingState state)
+        onLocalAIStreamingStateChange,
   }) async {
     final stream = _MockCompletionStream();
     unawaited(
@@ -94,7 +103,7 @@ class _MockAIRepositoryMore extends Mock implements AppFlowyAIService {
         await onStart();
         // return 10 lines
         for (var i = 0; i < 10; i++) {
-          await onProcess('Hello World\n\n');
+          await processMessage('Hello World\n\n');
         }
         await onEnd();
       }),
@@ -113,9 +122,12 @@ class _MockErrorRepository extends Mock implements AppFlowyAIService {
     List<AiWriterRecord> history = const [],
     required CompletionTypePB completionType,
     required Future<void> Function() onStart,
-    required Future<void> Function(String text) onProcess,
+    required Future<void> Function(String text) processMessage,
+    required Future<void> Function(String text) processAssistMessage,
     required Future<void> Function() onEnd,
     required void Function(AIError error) onError,
+    required void Function(LocalAIStreamingState state)
+        onLocalAIStreamingStateChange,
   }) async {
     final stream = _MockCompletionStream();
     unawaited(
@@ -162,20 +174,22 @@ void main() {
         );
         final editorState = EditorState(document: document)
           ..selection = selection;
-        final command = AiWriterCommand.explain;
-        final node = aiWriterNode(
-          command: command,
-          selection: selection,
-        );
         return AiWriterCubit(
           documentId: '',
-          getAiWriterNode: () => node,
           editorState: editorState,
-          initialCommand: command,
           aiService: _MockAIRepository(),
         );
       },
-      act: (bloc) => bloc.init(),
+      act: (bloc) => bloc.register(
+        aiWriterNode(
+          command: AiWriterCommand.explain,
+          selection: Selection(
+            start: Position(path: [0]),
+            end: Position(path: [2], offset: text3.length),
+          ),
+        ),
+      ),
+      wait: Duration(seconds: 1),
       expect: () => [
         isA<GeneratingAiWriterState>()
             .having((s) => s.markdownText, 'result', isEmpty),
@@ -216,19 +230,22 @@ void main() {
         );
         final editorState = EditorState(document: document)
           ..selection = selection;
-        final node = aiWriterNode(
-          command: AiWriterCommand.explain,
-          selection: selection,
-        );
         return AiWriterCubit(
           documentId: '',
-          getAiWriterNode: () => node,
           editorState: editorState,
-          initialCommand: AiWriterCommand.explain,
           aiService: _MockErrorRepository(),
         );
       },
-      act: (bloc) => bloc.init(),
+      act: (bloc) => bloc.register(
+        aiWriterNode(
+          command: AiWriterCommand.explain,
+          selection: Selection(
+            start: Position(path: [0]),
+            end: Position(path: [2], offset: text3.length),
+          ),
+        ),
+      ),
+      wait: Duration(seconds: 1),
       expect: () => [
         isA<GeneratingAiWriterState>()
             .having((s) => s.markdownText, 'result', isEmpty),
@@ -264,12 +281,10 @@ void main() {
       final aiNode = editorState.getNodeAtPath([3])!;
       final bloc = AiWriterCubit(
         documentId: '',
-        getAiWriterNode: () => aiNode,
         editorState: editorState,
-        initialCommand: AiWriterCommand.improveWriting,
         aiService: _MockAIRepository(),
       );
-      bloc.init();
+      bloc.register(aiNode);
       await blocResponseFuture();
       bloc.runResponseAction(SuggestionAction.accept);
       await blocResponseFuture();
@@ -314,12 +329,10 @@ void main() {
       final aiNode = editorState.getNodeAtPath([3])!;
       final bloc = AiWriterCubit(
         documentId: '',
-        getAiWriterNode: () => aiNode,
         editorState: editorState,
-        initialCommand: AiWriterCommand.improveWriting,
         aiService: _MockAIRepository(),
       );
-      bloc.init();
+      bloc.register(aiNode);
       await blocResponseFuture();
       bloc.runResponseAction(SuggestionAction.discard);
       await blocResponseFuture();
@@ -355,16 +368,14 @@ void main() {
       final aiNode = editorState.getNodeAtPath([3])!;
       final bloc = AiWriterCubit(
         documentId: '',
-        getAiWriterNode: () => aiNode,
         editorState: editorState,
-        initialCommand: AiWriterCommand.improveWriting,
         aiService: _MockAIRepositoryLess(),
       );
-      bloc.init();
+      bloc.register(aiNode);
       await blocResponseFuture();
       bloc.runResponseAction(SuggestionAction.accept);
       await blocResponseFuture();
-      expect(editorState.document.root.children.length, 1);
+      expect(editorState.document.root.children.length, 2);
       expect(
         editorState.getNodeAtPath([0])!.delta!.toPlainText(),
         'Hello World',
@@ -394,12 +405,10 @@ void main() {
       final aiNode = editorState.getNodeAtPath([3])!;
       final bloc = AiWriterCubit(
         documentId: '',
-        getAiWriterNode: () => aiNode,
         editorState: editorState,
-        initialCommand: AiWriterCommand.improveWriting,
         aiService: _MockAIRepositoryMore(),
       );
-      bloc.init();
+      bloc.register(aiNode);
       await blocResponseFuture();
       bloc.runResponseAction(SuggestionAction.accept);
       await blocResponseFuture();

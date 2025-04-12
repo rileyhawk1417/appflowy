@@ -32,13 +32,12 @@ collab = { workspace = true }
 #collab = { workspace = true, features = ["verbose_log"] }
 
 diesel.workspace = true
-uuid.workspace = true
 flowy-storage = { workspace = true }
 flowy-storage-pub = { workspace = true }
 client-api.workspace = true
 flowy-ai = { workspace = true }
 flowy-ai-pub = { workspace = true }
-appflowy-local-ai = { version = "0.1.0" }
+af-local-ai = { version = "0.1.0" }
 
 
 tracing.workspace = true
@@ -56,8 +55,7 @@ lib-infra = { workspace = true }
 serde.workspace = true
 serde_json.workspace = true
 serde_repr.workspace = true
-futures.workspace = true
-walkdir = "2.4.0"
+uuid.workspace = true
 sysinfo = "0.30.5"
 semver = { version = "1.0.22", features = ["serde"] }
 
@@ -73,14 +71,6 @@ dart = [
   "flowy-database2/dart",
   "flowy-ai/dart",
   "flowy-storage/dart",
-]
-ts = [
-  "flowy-user/tauri_ts",
-  "flowy-folder/tauri_ts",
-  "flowy-search/tauri_ts",
-  "flowy-database2/ts",
-  "flowy-ai/tauri_ts",
-  "flowy-storage/tauri_ts",
 ]
 openssl_vendored = ["flowy-sqlite/openssl_vendored"]
 

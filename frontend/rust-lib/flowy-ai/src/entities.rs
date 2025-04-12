@@ -1,14 +1,15 @@
-use appflowy_plugin::core::plugin::RunningState;
-use std::collections::HashMap;
-
 use crate::local_ai::controller::LocalAISetting;
 use crate::local_ai::resource::PendingResource;
+use af_plugin::core::plugin::RunningState;
 use flowy_ai_pub::cloud::{
-  ChatMessage, ChatMessageMetadata, ChatMessageType, CompletionRecord, LLMModel, OutputContent,
-  OutputLayout, RelatedQuestion, RepeatedChatMessage, RepeatedRelatedQuestion, ResponseFormat,
+  AIModel, ChatMessage, ChatMessageMetadata, ChatMessageType, CompletionMessage, LLMModel,
+  OutputContent, OutputLayout, RelatedQuestion, RepeatedChatMessage, RepeatedRelatedQuestion,
+  ResponseFormat,
 };
 use flowy_derive::{ProtoBuf, ProtoBuf_Enum};
 use lib_infra::validator_fn::required_not_empty_str;
+use std::collections::HashMap;
+use uuid::Uuid;
 use validator::Validate;
 
 #[derive(Default, ProtoBuf, Validate, Clone, Debug)]
@@ -76,9 +77,9 @@ pub struct StreamChatPayloadPB {
 }
 
 #[derive(Default, Debug)]
-pub struct StreamMessageParams<'a> {
-  pub chat_id: &'a str,
-  pub message: &'a str,
+pub struct StreamMessageParams {
+  pub chat_id: Uuid,
+  pub message: String,
   pub message_type: ChatMessageType,
   pub answer_stream_port: i64,
   pub question_stream_port: i64,
@@ -100,6 +101,9 @@ pub struct RegenerateResponsePB {
 
   #[pb(index = 4, one_of)]
   pub format: Option<PredefinedFormatPB>,
+
+  #[pb(index = 5, one_of)]
+  pub model: Option<AIModelPB>,
 }
 
 #[derive(Default, ProtoBuf, Validate, Clone, Debug)]
@@ -182,10 +186,80 @@ pub struct ChatMessageListPB {
   pub total: i64,
 }
 
-#[derive(Default, ProtoBuf, Validate, Clone, Debug)]
-pub struct ModelConfigPB {
+#[derive(Default, ProtoBuf, Clone, Debug)]
+pub struct ServerAvailableModelsPB {
   #[pb(index = 1)]
-  pub models: String,
+  pub models: Vec<AvailableModelPB>,
+}
+
+#[derive(Default, ProtoBuf, Clone, Debug)]
+pub struct AvailableModelPB {
+  #[pb(index = 1)]
+  pub name: String,
+
+  #[pb(index = 2)]
+  pub is_default: bool,
+
+  #[pb(index = 3)]
+  pub desc: String,
+}
+
+#[derive(Default, ProtoBuf, Validate, Clone, Debug)]
+pub struct AvailableModelsQueryPB {
+  #[pb(index = 1)]
+  #[validate(custom(function = "required_not_empty_str"))]
+  pub source: String,
+}
+
+#[derive(Default, ProtoBuf, Validate, Clone, Debug)]
+pub struct UpdateSelectedModelPB {
+  #[pb(index = 1)]
+  #[validate(custom(function = "required_not_empty_str"))]
+  pub source: String,
+
+  #[pb(index = 2)]
+  pub selected_model: AIModelPB,
+}
+
+#[derive(Default, ProtoBuf, Clone, Debug)]
+pub struct AvailableModelsPB {
+  #[pb(index = 1)]
+  pub models: Vec<AIModelPB>,
+
+  #[pb(index = 2)]
+  pub selected_model: AIModelPB,
+}
+
+#[derive(Default, ProtoBuf, Clone, Debug)]
+pub struct AIModelPB {
+  #[pb(index = 1)]
+  pub name: String,
+
+  #[pb(index = 2)]
+  pub is_local: bool,
+
+  #[pb(index = 3)]
+  pub desc: String,
+}
+
+impl From<AIModel> for AIModelPB {
+  fn from(model: AIModel) -> Self {
+    Self {
+      name: model.name,
+      is_local: model.is_local,
+      desc: model.desc,
+    }
+  }
+}
+
+impl From<AIModelPB> for AIModel {
+  fn from(value: AIModelPB) -> Self {
+    AIModel {
+      name: value.name,
+      is_local: value.is_local,
+      desc: value.desc,
+    }
+  }
 }
 
 impl From<RepeatedChatMessage> for ChatMessageListPB {
@@ -361,6 +435,9 @@ pub struct CompleteTextPB {
 
   #[pb(index = 7)]
   pub history: Vec<CompletionRecordPB>,
+
+  #[pb(index = 8, one_of)]
+  pub custom_prompt: Option<String>,
 }
 
 #[derive(Default, ProtoBuf, Clone, Debug)]
@@ -379,6 +456,7 @@ pub enum CompletionTypePB {
   ImproveWriting = 4,
   MakeShorter = 5,
   MakeLonger = 6,
+  CustomPrompt = 7,
 }
 
 #[derive(Default, ProtoBuf, Clone, Debug)]
@@ -390,9 +468,9 @@ pub struct CompletionRecordPB {
   pub content: String,
 }
 
-impl From<&CompletionRecordPB> for CompletionRecord {
+impl From<&CompletionRecordPB> for CompletionMessage {
   fn from(value: &CompletionRecordPB) -> Self {
-    CompletionRecord {
+    CompletionMessage {
       role: match value.role {
         // Coerce ChatMessageTypePB::System to AI
         ChatMessageTypePB::System => "ai".to_string(),
@@ -467,14 +545,14 @@ pub struct PendingResourcePB {
 pub enum PendingResourceTypePB {
   #[default]
   LocalAIAppRes = 0,
-  AIModel = 1,
+  ModelRes = 1,
 }
 
 impl From<PendingResource> for PendingResourceTypePB {
   fn from(value: PendingResource) -> Self {
     match value {
       PendingResource::PluginExecutableNotReady { .. } => PendingResourceTypePB::LocalAIAppRes,
-      _ => PendingResourceTypePB::AIModel,
+      _ => PendingResourceTypePB::ModelRes,
     }
   }
 }
@@ -507,20 +585,17 @@ pub struct LocalAIPB {
   #[pb(index = 1)]
   pub enabled: bool,
 
-  #[pb(index = 2)]
-  pub is_plugin_executable_ready: bool,
+  #[pb(index = 2, one_of)]
+  pub lack_of_resource: Option<LackOfAIResourcePB>,
 
-  #[pb(index = 3, one_of)]
-  pub lack_of_resource: Option<String>,
-
-  #[pb(index = 4)]
+  #[pb(index = 3)]
   pub state: RunningStatePB,
-}
 
-#[derive(Default, ProtoBuf, Clone, Debug)]
-pub struct LocalAIAppLinkPB {
-  #[pb(index = 1)]
-  pub link: String,
+  #[pb(index = 4, one_of)]
+  pub plugin_version: Option<String>,
+
+  #[pb(index = 5)]
+  pub plugin_downloaded: bool,
 }
 
 #[derive(Default, ProtoBuf, Validate, Clone, Debug)]
@@ -555,6 +630,9 @@ pub struct UpdateChatSettingsPB {
 
   #[pb(index = 2)]
   pub rag_ids: Vec<String>,
+
+  #[pb(index = 3)]
+  pub chat_model: String,
 }
 
 #[derive(Debug, Default, Clone, ProtoBuf)]
@@ -643,5 +721,35 @@ impl From<LocalAISettingPB> for LocalAISetting {
 #[derive(Default, ProtoBuf, Clone, Debug)]
 pub struct LackOfAIResourcePB {
   #[pb(index = 1)]
-  pub resource_desc: String,
+  pub resource_type: LackOfAIResourceTypePB,
+
+  #[pb(index = 2)]
+  pub missing_model_names: Vec<String>,
+}
+
+#[derive(Debug, Default, Clone, ProtoBuf_Enum)]
+pub enum LackOfAIResourceTypePB {
+  #[default]
+  PluginExecutableNotReady = 0,
+  OllamaServerNotReady = 1,
+  MissingModel = 2,
+}
+
+impl From<PendingResource> for LackOfAIResourcePB {
+  fn from(value: PendingResource) -> Self {
+    match value {
+      PendingResource::PluginExecutableNotReady => Self {
+        resource_type: LackOfAIResourceTypePB::PluginExecutableNotReady,
+        missing_model_names: vec![],
+      },
+      PendingResource::OllamaServerNotReady => Self {
+        resource_type: LackOfAIResourceTypePB::OllamaServerNotReady,
+        missing_model_names: vec![],
+      },
+      PendingResource::MissingModel(model_name) => Self {
+        resource_type: LackOfAIResourceTypePB::MissingModel,
+        missing_model_names: vec![model_name],
+      },
+    }
+  }
 }
